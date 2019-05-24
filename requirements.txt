@@ -1,5 +1,10 @@
 flask
 uwsgi
 requests
-importlib
 datetime
+flask_sqlalchemy
+ConfigParser
+pymongo
+pymysql
+elasticsearch
+cx_oracle
