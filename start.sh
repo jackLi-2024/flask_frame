@@ -1,5 +1,5 @@
 
-source ~/.bash_profile
+# source ~/.bash_profile
 # source conf/python.conf 
 
 if [ ! -d log ];
@@ -31,3 +31,4 @@ fi
 echo "upload server is ready."
 
 # nohup python -m SimpleHTTPServer 9002 &
+# nohup python cron/fresh_msg.py &

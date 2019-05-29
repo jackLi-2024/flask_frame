@@ -18,14 +18,15 @@ import time
 import sys
 from src.common import output
 from src.common import util
-from src.model.db import db
-from src.model.Models import User
+from src.model.Models import *
 
 try:
     reload(sys)
     sys.setdefaultencoding("utf8")
 except:
     pass
+
+logger = logging.getLogger("flask")
 
 
 class Test():
@@ -34,8 +35,4 @@ class Test():
 
     def test1(self, request):
         result = request.args
-        db.create_all()
-        user = User(username="lijiacai123", email="13112@qq.com")
-        db.session.add(user)
-        db.session.commit()
         return output.normal_result(result)

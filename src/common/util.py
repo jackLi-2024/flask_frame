@@ -16,7 +16,7 @@ import requests
 reload(sys)
 sys.setdefaultencoding('utf8')
 
-logger = logging.getLogger("upload")
+logger = logging.getLogger("flask")
 
 
 def load_cls(controller_package, controller_name):

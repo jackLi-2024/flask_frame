@@ -1,0 +1,8 @@
+1.Api Example
+    POST /message/send
+    params：
+        "phones": "111111111"
+
+    return：
+        xxx
+

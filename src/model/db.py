@@ -20,24 +20,21 @@ import pymongo
 import requests
 from elasticsearch import Elasticsearch
 from elasticsearch import helpers
-from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-from src.common import get_config
 
 try:
     reload(sys)
     sys.setdefaultencoding("utf8")
 except:
     pass
-app = Flask(__name__)
-app.debug = True
 try:
-    app.config["SQLALCHEMY_DATABASE_URI"] = get_config.get("database").get("info")
-    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = True
-    db = SQLAlchemy(app)
-except  Exception as e:
-    db = None
-    logging.exception(str(e))
+    from src.common import get_config
+
+    params = get_config.get_conf("./config.ini")
+except:
+    params = {}
+    pass
+
+logger = logging.getLogger("flask")
 
 
 class MysqlDB():
@@ -47,8 +44,13 @@ class MysqlDB():
     """
 
     def __init__(self, host=None, port=3306, user="root", password="123456", db="test",
-                 cursorclass=pymysql.cursors.SSCursor):
-        self.db = db
+                 cursorclass="pymysql.cursors.SSCursor", conf=params.get("mysql")):
+        self.db = conf.get("db", db)
+        host = conf.get("host", host)
+        port = int(conf.get("port", port))
+        user = conf.get("user", user)
+        password = conf.get("password", password)
+        cursorclass = eval(conf.get("cursorclass", cursorclass))
         try:
             self.client = pymysql.connect(host=host, port=port, passwd=password, user=user,
                                           cursorclass=cursorclass)
@@ -58,7 +60,10 @@ class MysqlDB():
             raise Exception("---Connect MysqlServer Error---")
 
     def create_database(self):
-        self.cursor.execute('CREATE DATABASE IF NOT EXISTS %s' % self.db)
+        try:
+            self.cursor.execute('CREATE DATABASE IF NOT EXISTS %s' % self.db)
+        except Exception as e:
+            self.output(str(e))
         self.client.select_db(self.db)
 
     def create_table(self, sql=""):
@@ -72,18 +77,33 @@ class MysqlDB():
         except Exception as e:
             self.output(str(e))
 
-    def write(self, query=""):
-        pass
-
-    def read(self, size=None):
+    def fetch(self, query=""):
+        """
+        fetch data by sql (select)
+        :param query: fetchmany(size=20)
+        :return:
+        """
         try:
-            return self.cursor.fetchmany(size=size)
+            return eval("self.cursor.%s" % query)
         except Exception as e:
             self.output(str(e))
 
     def execute(self, query="", args=None):
+        """
+        excute sql
+        :param query:
+        :param args:
+        :return:
+        """
         try:
             self.cursor.execute(query=query, args=args)
+        except Exception as e:
+            self.output(str(e))
+
+    def commit(self):
+        """commit insert sql"""
+        try:
+            self.client.commit()
         except Exception as e:
             self.output(str(e))
 
@@ -94,8 +114,14 @@ class MysqlDB():
             pass
 
     def close(self):
-        self.cursor.close()
-        self.client.close()
+        try:
+            self.cursor.close()
+        except Exception as e:
+            pass
+        try:
+            self.client.close()
+        except Exception as e:
+            pass
 
     def output(self, arg):
         # print(str(arg))
@@ -103,33 +129,49 @@ class MysqlDB():
 
 
 class Oracle():
-    def __init__(self, host="116.62.186.185", port="1521", service_name="ORCL", user=None, password=None):
+    def __init__(self, host="116.62.186.185", port="1521", service_name="ORCL", user=None, password=None,
+                 conf=params.get("oracle")):
+        host = conf.get("host", host)
+        port = conf.get("port", port)
+        service_name = conf.get("ORCL", service_name)
+        user = conf.get("user", user)
+        password = conf.get("password", password)
         try:
             dsn_tns = cx_Oracle.makedsn(host, port, service_name=service_name)
-            self.client = cx_Oracle.connect(user=user, password=password, dsn=dsn_tns)
+            self.client = cx_Oracle.connect(
+                user=user, password=password, dsn=dsn_tns)
             self.cursor = self.client.cursor()
         except Exception as e:
             self.output(str(e))
             raise Exception("---Connnect Error---")
 
-    def write(self, query=""):
-        pass
-
-    def read(self, size=None):
+    def fetch(self, query=""):
+        """
+        fetch data by sql (select)
+        :param query: fetchmany(size=20)
+        :return:
+        """
         try:
-            return self.cursor.fetchmany(size)
-        except Exception as e:
-            self.output(str(e))
-
-    def readall(self):
-        try:
-            return self.cursor.fetchall()
+            return eval("self.cursor.%s" % query)
         except Exception as e:
             self.output(str(e))
 
     def execute(self, query="", args=None):
+        """
+        excute sql
+        :param query:
+        :param args:
+        :return:
+        """
         try:
             self.cursor.execute(query=query, args=args)
+        except Exception as e:
+            self.output(str(e))
+
+    def commit(self):
+        """commit insert sql"""
+        try:
+            self.client.commit()
         except Exception as e:
             self.output(str(e))
 
@@ -140,11 +182,18 @@ class Oracle():
             pass
 
     def close(self):
-        self.cursor.close()
-        self.client.close()
+        try:
+            self.cursor.close()
+        except Exception as e:
+            pass
+        try:
+            self.client.close()
+        except Exception as e:
+            pass
 
-    def output(self, args):
-        logging.exception(str(args))
+    def output(self, arg):
+        # print(str(arg))
+        logging.exception(str(arg))
 
 
 class MongoDB():
@@ -176,7 +225,8 @@ class MongoDB():
                                               **kwargs)
             if all([auth_db, auth_user, auth_password]):
                 self.auth_db = eval("self.client.%s" % auth_db)
-                self.auth_db.authenticate(auth_user, auth_password, mechanism=auth_method)
+                self.auth_db.authenticate(
+                    auth_user, auth_password, mechanism=auth_method)
 
             self.db = eval("self.client.%s" % db)
             self.collection = eval("self.db.%s" % collection)
@@ -263,7 +313,8 @@ class EsDB():
             if not self.index_exist():
                 self.create_index(body=schema_mapping)
             else:
-                print("Current index already exists(index name = %s)" % self.index_name)
+                print("Current index already exists(index name = %s)" %
+                      self.index_name)
         except Exception as e:
             self.output(str(e))
 
@@ -304,7 +355,8 @@ class EsDB():
         :return:
         """
         try:
-            response = requests.get(random.choice(self.cluster) + self.index_name + "/_search?%s" % query)
+            response = requests.get(random.choice(
+                self.cluster) + self.index_name + "/_search?%s" % query)
             return response.json()
         except Exception as e:
             self.output(str(e))
@@ -374,16 +426,13 @@ def test_mysql():
     port = 9906
     user = "root"
     password = "123456"
-    db = "scrapy"
+    db = "lijiacai_test"
     mysql = MysqlDB(host=host, port=port, user=user, password=password, db=db)
-    # sql = "CREATE TABLE test (id int primary key,name varchar(30))"
-    # mysql.create_table(sql=sql)
-    query = "select * from cars_count limit 2"
-    mysql.execute(query=query)
-    size = 1
-    print(list(mysql.read(size=size)))
-    print(json.loads(json.dumps(mysql.read(size=size), ensure_ascii=False).encode("utf8")))
-    print(json.loads(json.dumps(mysql.read(size=size), ensure_ascii=False).encode("utf8")))
+    mysql.execute(query='insert into test(phone, content) values ("123", "qqq");')
+    # mysql.commit()
+    mysql.execute(query="select * from test;")
+    print(list(mysql.fetch(query="fetchall()")))
+    mysql.close()
 
 
 def test_oracle():
@@ -392,4 +441,9 @@ def test_oracle():
     service_name = "ORCL"
     user = "devcq"
     password = "baIaGbnx9C"
-    oracle = Oracle(host=host, port=port, service_name=service_name, user=user, password=password)
+    oracle = Oracle(host=host, port=port,
+                    service_name=service_name, user=user, password=password)
+
+
+if __name__ == '__main__':
+    test_mysql()
